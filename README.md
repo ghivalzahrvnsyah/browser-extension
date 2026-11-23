@@ -1,4 +1,4 @@
-# Cookie Brother
+# Megamendung Cookies
 
 Ekstensi Chromium Manifest V3 untuk melihat, mengedit, mengimpor, dan mengekspor cookies secara lokal. Dibuat dengan HTML, CSS, dan JavaScript vanilla tanpa framework atau proses build.
 
@@ -7,7 +7,7 @@ Ekstensi Chromium Manifest V3 untuk melihat, mengedit, mengimpor, dan mengekspor
 1. Buka `brave://extensions` atau `chrome://extensions`.
 2. Aktifkan **Developer mode**.
 3. Pilih **Load unpacked** dan arahkan ke folder proyek ini.
-4. Buka situs web yang cookies-nya ingin dikelola, lalu klik ikon Cookie Brother.
+4. Buka situs web yang cookies-nya ingin dikelola, lalu klik ikon Megamendung Cookies.
 
 Editor penuh dapat dibuka dari tombol **Editor** di popup. Klik kanan ikon extension untuk membuka editor dengan domain tab aktif terisi.
 
@@ -15,8 +15,8 @@ Editor penuh dapat dibuka dari tombol **Editor** di popup. Klik kanan ikon exten
 
 - Melihat cookies dari tab aktif dan frame yang dapat diakses, termasuk flag HttpOnly, Secure, SameSite, cookie store, dan partition key.
 - Melihat cookies satu domain atau seluruh domain, pencarian, filter, pengurutan, pemilihan banyak, tambah/edit/hapus, dan ekspor.
-- Import dengan deteksi otomatis dan pratinjau: Cookie Brother JSON, JSON array, Playwright/Puppeteer storageState, Netscape cookies.txt, Cookie header, Set-Cookie, HAR, dan objek JSON bergaya Chrome SQLite.
-- Ekspor Cookie Brother JSON, Netscape cookies.txt, Cookie header, atau JSON polos.
+- Import dengan deteksi otomatis dan pratinjau: format JSON Megamendung, JSON array, Playwright/Puppeteer storageState, Netscape cookies.txt, Cookie header, Set-Cookie, HAR, dan objek JSON bergaya Chrome SQLite.
+- Ekspor JSON Megamendung, Netscape cookies.txt, Cookie header, atau JSON polos.
 - Salin hasil ekspor ke clipboard atau unduh sebagai file. Impor dapat dilakukan dengan menempel teks atau memilih file langsung dari popup/editor tanpa membuka tab baru.
 - Tema Light, Dark, dan System; pengaturan disimpan di `chrome.storage.local`.
 - Auto-refresh tab setelah setidaknya satu cookie berhasil diimpor.
@@ -49,3 +49,19 @@ Brave Shields atau kebijakan browser dapat memblokir cookie pihak ketiga. Extens
 ## Catatan kompatibilitas
 
 Target adalah Chrome 120+ dan Brave berbasis Chromium yang setara. Partitioned cookies ditangani best-effort bergantung API dan izin browser. Tidak ada dukungan Firefox/Safari maupun localStorage, sessionStorage, atau IndexedDB.
+
+## Technologies
+
+JavaScript (Vanilla)
+TML5
+CSS3
+Chrome Extension Manifest V3
+Chromium-based browsers
+
+## License
+
+All rights reserved unless otherwise specified.
+
+## Author
+
+Ghivalza Harviansyah
