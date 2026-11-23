@@ -1,45 +1,146 @@
-import { getActiveTab, getTabCookies, removeCookie } from "../lib/cookies-api.js";
+import { getActiveTab, getTabCookies, removeCookie, setCookie, validateCookie } from "../lib/cookies-api.js";
 import { bindTheme } from "../lib/theme.js";
 import { getSettings, saveSettings } from "../lib/storage.js";
 import { serializeCookies } from "../lib/serializers.js";
 import { parseCookies } from "../lib/parsers.js";
-import { setCookie, validateCookie } from "../lib/cookies-api.js";
 import { downloadText, hostname, toast } from "../lib/utils.js";
 
-const $ = (s) => document.querySelector(s); let tab, cookies = [], settings, activeStoreId = "0";
-await bindTheme($("#theme")); settings = await getSettings(); $("#autoRefresh").checked = settings.autoRefresh; $("#exportFormat").value = ["json","cookie-brother","netscape","cookie-header"].includes(settings.exportFormat) ? settings.exportFormat : "json"; $("#conflict").value = settings.conflict;
+const $ = (selector) => document.querySelector(selector);
+let tab, cookies = [], settings, activeStoreId = "0";
+
+await bindTheme($("#theme"));
+settings = await getSettings();
+$("#autoRefresh").checked = settings.autoRefresh;
+$("#exportFormat").value = ["json", "cookie-brother", "netscape", "cookie-header"].includes(settings.exportFormat) ? settings.exportFormat : "json";
+$("#conflict").value = settings.conflict;
 await loadCookies();
+
 async function loadCookies() {
-  try { tab = await getActiveTab(); if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) throw new Error("Halaman ini tidak mengizinkan akses cookies."); const stores = await chrome.cookies.getAllCookieStores(); activeStoreId = stores.find(s => s.tabIds?.includes(tab.id))?.id || "0"; cookies = (await getTabCookies(tab.id)).filter(c => c.storeId === activeStoreId); $("#domain").textContent = hostname(tab.url) || "Tab aktif"; render(); }
-  catch (e) { $("#domain").textContent = "Cookie tidak tersedia"; $("#empty").hidden = false; $("#empty").textContent = e.message; }
-}
-function render() {
-  const q = $("#search").value.toLowerCase(); const matches = cookies.filter(c => `${c.name} ${c.value} ${c.domain}`.toLowerCase().includes(q));
-  $("#count").textContent = `${cookies.length} cookies`; const body = $("#rows"); body.replaceChildren(); $("#empty").hidden = matches.length > 0;
-  for (const c of matches.slice(0, 500)) { const tr = document.createElement("tr");
-    const name = document.createElement("td"); name.textContent = c.name;
-    const domain = document.createElement("td"); domain.textContent = `${c.domain} · ${c.frame || "—"}`;
-    const flags = document.createElement("td"); flags.textContent = [c.secure && "Secure", c.httpOnly && "HttpOnly", c.session && "Session"].filter(Boolean).join(" · ") || "—";
-    const action = document.createElement("td"); const del = document.createElement("button"); del.textContent = "Hapus"; del.className = "danger"; del.setAttribute("aria-label", `Hapus ${c.name}`); del.onclick = async () => { if (!confirm(`Hapus cookie ${c.name}?`)) return; await removeCookie(c); cookies = cookies.filter(x => x !== c); render(); toast("Cookie dihapus."); }; action.append(del); tr.append(name, domain, flags, action); body.append(tr);
+  try {
+    tab = await getActiveTab();
+    if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) throw new Error("Halaman ini tidak mengizinkan akses cookies.");
+    const stores = await chrome.cookies.getAllCookieStores();
+    activeStoreId = stores.find(store => store.tabIds?.includes(tab.id))?.id || "0";
+    cookies = (await getTabCookies(tab.id)).filter(cookie => cookie.storeId === activeStoreId);
+    $("#domain").textContent = hostname(tab.url) || "Tab aktif";
+    render();
+  } catch (error) {
+    $("#domain").textContent = "Cookie tidak tersedia";
+    $("#empty").hidden = false;
+    $("#empty").textContent = error.message;
   }
 }
+
+function render() {
+  const query = $("#search").value.toLowerCase();
+  const matches = cookies.filter(cookie => `${cookie.name} ${cookie.value} ${cookie.domain}`.toLowerCase().includes(query));
+  $("#count").textContent = `${cookies.length} cookies`;
+  const body = $("#rows");
+  body.replaceChildren();
+  $("#empty").hidden = matches.length > 0;
+  for (const cookie of matches.slice(0, 500)) {
+    const row = document.createElement("tr");
+    const name = document.createElement("td"); name.textContent = cookie.name;
+    const domain = document.createElement("td"); domain.textContent = `${cookie.domain} · ${cookie.frame || "—"}`;
+    const flags = document.createElement("td"); flags.textContent = [cookie.secure && "Secure", cookie.httpOnly && "HttpOnly", cookie.session && "Session"].filter(Boolean).join(" · ") || "—";
+    const actions = document.createElement("td");
+    const remove = document.createElement("button"); remove.textContent = "Hapus"; remove.className = "danger"; remove.setAttribute("aria-label", `Hapus ${cookie.name}`);
+    remove.onclick = async () => {
+      if (!confirm(`Hapus cookie ${cookie.name}?`)) return;
+      await removeCookie(cookie);
+      cookies = cookies.filter(item => item !== cookie);
+      render(); toast("Cookie dihapus.");
+    };
+    actions.append(remove); row.append(name, domain, flags, actions); body.append(row);
+  }
+}
+
+function matchesDomain(host, domain) {
+  const normalizedHost = String(host || "").toLowerCase().replace(/^\.+/, "");
+  const normalizedDomain = String(domain || "").toLowerCase().replace(/^\.+/, "");
+  return Boolean(normalizedHost && normalizedDomain && (normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`)));
+}
+function key(cookie) { return JSON.stringify([cookie.name, cookie.domain, cookie.path, cookie.storeId, cookie.partitionKey || null]); }
+
 $("#search").addEventListener("input", render);
 $("#openEditor").onclick = () => chrome.runtime.sendMessage({ type: "OPEN_EDITOR", tabId: tab?.id });
 $("#import").onclick = () => { $("#importDialog").showModal(); $("#importText").focus(); };
 $("#export").onclick = () => $("#exportDialog").showModal();
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => $("#" + button.dataset.close).close());
-$("#autoRefresh").onchange = async (e) => { settings.autoRefresh = e.target.checked; await saveSettings({ autoRefresh: e.target.checked }); };
-$("#exportFormat").onchange = (e) => saveSettings({ exportFormat: e.target.value });
-async function exportCookies(action) { if (!cookies.length) return toast("Tidak ada cookie untuk diekspor."); if (!confirm(`Data ekspor berisi kredensial sesi (${cookies.length} cookies). Lanjutkan? Simpan file dengan aman dan hapus setelah digunakan.`)) return; const fmt = $("#exportFormat").value; const content = serializeCookies(cookies, fmt, tab?.url || ""); try { if (action === "copy") { await navigator.clipboard.writeText(content); toast("Cookie disalin ke clipboard."); } else { const text = fmt === "netscape" || fmt === "cookie-header"; downloadText(content, text ? "cookies.txt" : "cookies.json", text ? "text/plain" : "application/json"); } $("#exportDialog").close(); } catch (e) { toast(`Aksi gagal: ${e.message}`); } }
-$("#copyExport").onclick = () => exportCookies("copy"); $("#downloadExport").onclick = () => exportCookies("file");
-$("#deleteAll").onclick = async () => { if (!cookies.length || !confirm(`Hapus semua ${cookies.length} cookies yang terlihat di tab ini?`)) return; for (const c of cookies) try { await removeCookie(c); } catch {} cookies = []; render(); toast("Cookies dihapus."); };
+$("#autoRefresh").onchange = async event => { settings.autoRefresh = event.target.checked; await saveSettings({ autoRefresh: event.target.checked }); };
+$("#exportFormat").onchange = event => saveSettings({ exportFormat: event.target.value });
 
-let parsed = [];
-const matchesDomain = (host, domain) => { const h = String(host || "").toLowerCase().replace(/^\.+/, ""); const d = String(domain || "").toLowerCase().replace(/^\.+/, ""); return Boolean(h && d && (h === d || h.endsWith(`.${d}`))); };
-$("#file").onchange = async e => { const file = e.target.files[0]; if (!file) return; if (file.size > 10 * 1024 * 1024) return toast("Ukuran file melebihi 10 MB."); $("#importText").value = await file.text(); };
-$("#importDialog").addEventListener("dragover", e => e.preventDefault());
-$("#importDialog").addEventListener("drop", async e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.size <= 10 * 1024 * 1024) $("#importText").value = await file.text(); else toast("File kosong atau melebihi 10 MB."); });
-$("#preview").onclick = async () => { try { parsed = parseCookies($("#importText").value, tab?.url || "", $("#importFormat").value).map(c => ({ ...c, storeId: activeStoreId })); if (!parsed.length) throw new Error("Tidak ada cookie yang dikenali."); drawPreview(); } catch (e) { parsed = []; $("#previewArea").hidden = true; toast(e.message); } };
-function drawPreview() { const body = $("#previewRows"); body.replaceChildren(); const existing = new Set(cookies.map(c => JSON.stringify([c.name,c.domain,c.path,c.storeId,c.partitionKey||null]))); let warnings = 0; const host = hostname(tab?.url || ""); for (const c of parsed.slice(0,500)) { const notes = validateCookie(c); if (c.warning) notes.push(c.warning); if (c.domain && host && !matchesDomain(host,c.domain)) notes.push("Domain berbeda dari tab aktif"); const key = JSON.stringify([c.name,c.domain,c.path,c.storeId,c.partitionKey||null]); if (existing.has(key)) notes.push($("#conflict").value === "skip" ? "Akan dilewati" : "Akan ditimpa"); if (notes.length) warnings++; const tr = document.createElement("tr"); for (const text of [c.name || "(tanpa nama)",c.domain || "(tanpa domain)",notes.join(" · ") || "Siap"]) { const td = document.createElement("td"); td.textContent = text; tr.append(td); } body.append(tr); } $("#previewSummary").textContent = `${parsed.length} cookies terdeteksi · ${warnings} baris memiliki catatan.`; $("#previewArea").hidden = false; }
-$("#conflict").onchange = async e => { await saveSettings({ conflict: e.target.value }); if (parsed.length) drawPreview(); };
-$("#applyImport").onclick = async () => { if (!tab?.id) return toast("Tab aktif tidak tersedia."); const skip = $("#conflict").value === "skip", onlyDomain = $("#activeDomainOnly").checked, host = hostname(tab.url || ""); const existing = new Set(cookies.map(c => JSON.stringify([c.name,c.domain,c.path,c.storeId,c.partitionKey||null]))); let ok = 0; const failed = []; for (const c of parsed) { if (c.warning) { failed.push(`${c.name}: ${c.warning}`); continue; } if (onlyDomain && !matchesDomain(host,c.domain)) { failed.push(`${c.name}: domain di luar tab ini`); continue; } const key = JSON.stringify([c.name,c.domain,c.path,c.storeId,c.partitionKey||null]); if (skip && existing.has(key)) { failed.push(`${c.name}: dilewati karena sudah ada`); continue; } const errors = validateCookie(c); if (errors.length) { failed.push(`${c.name}: ${errors.join(" ")}`); continue; } try { await setCookie(c,activeStoreId); ok++; } catch (e) { failed.push(`${c.name}: ${e.message}`); } } toast(`Import selesai: ${ok} berhasil, ${failed.length} gagal/dilewati.`); if (failed.length) alert(`Hasil import\nBerhasil: ${ok}\nGagal/dilewati: ${failed.length}\n\n${failed.slice(0,25).join("\n")}`); if (ok) { $("#importDialog").close(); await loadCookies(); if ($("#autoRefresh").checked) await chrome.tabs.reload(tab.id,{bypassCache:true}); } };
+async function exportCookies(action) {
+  if (!cookies.length) return toast("Tidak ada cookie untuk diekspor.");
+  if (!confirm(`Data ekspor berisi kredensial sesi (${cookies.length} cookies). Lanjutkan? Simpan file dengan aman.`)) return;
+  const format = $("#exportFormat").value;
+  const content = serializeCookies(cookies, format, tab?.url || "");
+  try {
+    if (action === "copy") {
+      await navigator.clipboard.writeText(content);
+      toast("Cookie disalin ke clipboard.");
+    } else {
+      const text = format === "netscape" || format === "cookie-header";
+      downloadText(content, text ? "cookies.txt" : "cookies.json", text ? "text/plain" : "application/json");
+    }
+    $("#exportDialog").close();
+  } catch (error) { toast(`Aksi gagal: ${error.message}`); }
+}
+$("#copyExport").onclick = () => exportCookies("copy");
+$("#downloadExport").onclick = () => exportCookies("file");
+
+$("#deleteAll").onclick = async () => {
+  if (!cookies.length || !confirm(`Hapus semua ${cookies.length} cookies yang terlihat di tab ini?`)) return;
+  for (const cookie of cookies) try { await removeCookie(cookie); } catch {}
+  cookies = []; render(); toast("Cookies dihapus.");
+};
+
+$("#file").onchange = async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { toast("Ukuran file melebihi 10 MB."); return; }
+  $("#importText").value = await file.text();
+};
+$("#importDialog").addEventListener("dragover", event => event.preventDefault());
+$("#importDialog").addEventListener("drop", async event => {
+  event.preventDefault();
+  const file = event.dataTransfer.files[0];
+  if (file && file.size <= 10 * 1024 * 1024) $("#importText").value = await file.text();
+  else toast("File kosong atau melebihi 10 MB.");
+});
+$("#conflict").onchange = event => saveSettings({ conflict: event.target.value });
+
+$("#importNow").onclick = async () => {
+  if (!tab?.id) return toast("Tab aktif tidak tersedia.");
+  let incoming;
+  try {
+    incoming = parseCookies($("#importText").value, tab.url || "", "auto").map(cookie => ({ ...cookie, storeId: activeStoreId }));
+    if (!incoming.length) throw new Error("Tidak ada cookie yang dikenali.");
+  } catch (error) { toast(error.message); return; }
+
+  const skip = $("#conflict").value === "skip";
+  const onlyDomain = $("#activeDomainOnly").checked;
+  const host = hostname(tab.url || "");
+  const existing = new Set(cookies.map(key));
+  const overwriteCount = incoming.filter(cookie => !cookie.warning && existing.has(key(cookie))).length;
+  if (!skip && overwriteCount && !confirm(`${overwriteCount} cookie yang sudah ada akan ditimpa. Lanjutkan import?`)) return;
+
+  let success = 0;
+  const failures = [];
+  for (const cookie of incoming) {
+    if (cookie.warning) { failures.push(`${cookie.name}: ${cookie.warning}`); continue; }
+    if (onlyDomain && !matchesDomain(host, cookie.domain)) { failures.push(`${cookie.name}: domain di luar tab ini`); continue; }
+    if (skip && existing.has(key(cookie))) { failures.push(`${cookie.name}: dilewati karena sudah ada`); continue; }
+    const errors = validateCookie(cookie);
+    if (errors.length) { failures.push(`${cookie.name || "cookie"}: ${errors.join(" ")}`); continue; }
+    try { await setCookie(cookie, activeStoreId); success++; }
+    catch (error) { failures.push(`${cookie.name}: ${error.message}`); }
+  }
+  $("#importDialog").close();
+  toast(`Import selesai: ${success} berhasil, ${failures.length} gagal/dilewati.`);
+  if (failures.length) alert(`Hasil import\nBerhasil: ${success}\nGagal/dilewati: ${failures.length}\n\n${failures.slice(0, 25).join("\n")}`);
+  if (success) {
+    await loadCookies();
+    if ($("#autoRefresh").checked) await chrome.tabs.reload(tab.id, { bypassCache: true });
+  }
+};

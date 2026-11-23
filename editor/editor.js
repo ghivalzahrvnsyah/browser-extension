@@ -5,7 +5,7 @@ import { parseCookies } from "../lib/parsers.js";
 import { serializeCookies } from "../lib/serializers.js";
 import { downloadText, copyText, hostname, toast } from "../lib/utils.js";
 
-const $ = s => document.querySelector(s); let tab, cookies = [], previewCookies = [], stores = [], mode = "tab", sort = "domain", ascending = true;
+const $ = s => document.querySelector(s); let tab, cookies = [], stores = [], mode = "tab", sort = "domain", ascending = true;
 const matchesDomain = (host, domain) => { const h = String(host || "").toLowerCase().replace(/^\.+/, ""); const d = String(domain || "").toLowerCase().replace(/^\.+/, ""); return Boolean(h && d && (h === d || h.endsWith(`.${d}`))); };
 const params = new URLSearchParams(location.search); const requestedTabId = Number(params.get("tabId"));
 	await bindTheme($("#theme")); const settings = await getSettings(); $("#mask").checked = settings.maskValues; $("#conflict").value = settings.conflict; $("#exportFormat").value = settings.exportFormat; $("#refreshScope").value = settings.refreshScope; $("#domainInput").value = params.get("domain") || "";
@@ -66,10 +66,41 @@ $("#copyExport").onclick = () => exportCookies("copy"); $("#downloadExport").onc
 $("#importFocus").onclick = () => { $("#importText").focus(); $("#importPanel").scrollIntoView({ behavior: "smooth" }); };
 $("#file").onchange = async e => { const file = e.target.files[0]; if (!file) return; if (file.size > 10 * 1024 * 1024) return toast("Ukuran file melebihi 10 MB."); $("#importText").value = await file.text(); };
 $("#importPanel").addEventListener("dragover", e => { e.preventDefault(); $("#importPanel").classList.add("drag"); }); $("#importPanel").addEventListener("dragleave", () => $("#importPanel").classList.remove("drag")); $("#importPanel").addEventListener("drop", async e => { e.preventDefault(); $("#importPanel").classList.remove("drag"); const file = e.dataTransfer.files[0]; if (file && file.size <= 10 * 1024 * 1024) $("#importText").value = await file.text(); else toast("File kosong atau melebihi 10 MB."); });
-$("#preview").onclick = () => { try { previewCookies = parseCookies($("#importText").value, tab?.url || "", $("#importFormat").value).map(c => ({ ...c, storeId: $("#store").value })); if (!previewCookies.length) throw new Error("Tidak ada cookie yang dapat diparse."); drawPreview(); } catch (e) { toast(e.message); $("#previewArea").hidden = true; } };
-function drawPreview() { const existing = new Set(cookies.map(cookieKey)); const targetHost = hostname(tab?.url || ""); const body = $("#previewRows"); body.replaceChildren(); let warnings = 0; for (const c of previewCookies.slice(0,1000)) { const errs = validateCookie(c); if (c.warning) errs.push(c.warning); if (!c.domain) errs.push("Domain tidak ditemukan"); if (c.domain && targetHost && !matchesDomain(targetHost, c.domain)) errs.push("Domain berbeda dari tab aktif"); if (existing.has(cookieKey(c))) errs.push($("#conflict").value === "skip" ? "Akan dilewati (duplikat)" : "Cookie akan ditimpa"); if (errs.length) warnings++; const tr = document.createElement("tr"); for (const val of [c.name || "(tanpa nama)", c.domain || "(tanpa domain)", errs.join(" · ") || "Siap"]) { const td = document.createElement("td"); td.textContent = val; tr.append(td); } body.append(tr); } $("#previewSummary").textContent = `${previewCookies.length} cookie terdeteksi · ${warnings} baris memiliki catatan.`; $("#previewArea").hidden = false; }
-$("#conflict").onchange = async e => { await saveSettings({ conflict: e.target.value }); if (!$("#previewArea").hidden) drawPreview(); };
-$("#activeDomainOnly").onchange = () => { if (!$("#previewArea").hidden) drawPreview(); };
-$("#applyImport").onclick = async () => { const targetHost = hostname(tab?.url || ""); const onlyDomain = $("#activeDomainOnly").checked; const skip = $("#conflict").value === "skip"; const exist = new Set(cookies.map(cookieKey)); let success = 0; const failures = []; for (const c of previewCookies) { if (c.warning) { failures.push(`${c.name || "cookie"}: ${c.warning}`); continue; } if (onlyDomain && targetHost && !matchesDomain(targetHost, c.domain)) { failures.push(`${c.name}: domain di luar tab aktif`); continue; } if (skip && exist.has(cookieKey(c))) { failures.push(`${c.name}: dilewati karena sudah ada`); continue; } const errs = validateCookie(c); if (errs.length) { failures.push(`${c.name || "cookie"}: ${errs.join(" ")}`); continue; } try { await setCookie(c, $("#store").value); success++; } catch (e) { failures.push(`${c.name}: ${e.message}`); } }
-  toast(`Import selesai: ${success} berhasil, ${failures.length} gagal/dilewati.`); if (failures.length) alert(`Hasil import\nBerhasil: ${success}\nGagal/dilewati: ${failures.length}\n\n${failures.slice(0,30).join("\n")}`); if (success) { await loadCookies(); const s = await getSettings(); if (s.autoRefresh && tab?.id != null) { if (s.refreshScope === "domain") { const tabs = await chrome.tabs.query({}); for (const t of tabs) if (hostname(t.url || "") === targetHost) chrome.tabs.reload(t.id, { bypassCache: true }).catch(() => {}); } else chrome.tabs.reload(tab.id, { bypassCache: true }); } } };
 $("#activeDomainOnly").checked = false;
+$("#conflict").onchange = async e => saveSettings({ conflict: e.target.value });
+$("#importNow").onclick = async () => {
+  const targetHost = hostname(tab?.url || "");
+  let incoming;
+  try {
+    incoming = parseCookies($("#importText").value, tab?.url || "", $("#importFormat").value).map(c => ({ ...c, storeId: $("#store").value }));
+    if (!incoming.length) throw new Error("Tidak ada cookie yang dapat diparse.");
+  } catch (e) { toast(e.message); return; }
+  const onlyDomain = $("#activeDomainOnly").checked;
+  const skip = $("#conflict").value === "skip";
+  const existing = new Set(cookies.map(cookieKey));
+  const overwriteCount = incoming.filter(c => !c.warning && existing.has(cookieKey(c))).length;
+  if (!skip && overwriteCount && !confirm(`${overwriteCount} cookie yang sudah ada akan ditimpa. Lanjutkan import?`)) return;
+  let success = 0;
+  const failures = [];
+  for (const c of incoming) {
+    if (c.warning) { failures.push(`${c.name || "cookie"}: ${c.warning}`); continue; }
+    if (onlyDomain && targetHost && !matchesDomain(targetHost, c.domain)) { failures.push(`${c.name}: domain di luar tab aktif`); continue; }
+    if (skip && existing.has(cookieKey(c))) { failures.push(`${c.name}: dilewati karena sudah ada`); continue; }
+    const errors = validateCookie(c);
+    if (errors.length) { failures.push(`${c.name || "cookie"}: ${errors.join(" ")}`); continue; }
+    try { await setCookie(c, $("#store").value); success++; }
+    catch (e) { failures.push(`${c.name}: ${e.message}`); }
+  }
+  toast(`Import selesai: ${success} berhasil, ${failures.length} gagal/dilewati.`);
+  if (failures.length) alert(`Hasil import\nBerhasil: ${success}\nGagal/dilewati: ${failures.length}\n\n${failures.slice(0,30).join("\n")}`);
+  if (success) {
+    await loadCookies();
+    const s = await getSettings();
+    if (s.autoRefresh && tab?.id != null) {
+      if (s.refreshScope === "domain") {
+        const tabs = await chrome.tabs.query({});
+        for (const t of tabs) if (hostname(t.url || "") === targetHost) chrome.tabs.reload(t.id, { bypassCache: true }).catch(() => {});
+      } else chrome.tabs.reload(tab.id, { bypassCache: true });
+    }
+  }
+};
