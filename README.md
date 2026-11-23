@@ -4,8 +4,6 @@
 
 <h1 align="center">Megamendung Cookies</h1>
 
-<p align="center">Kelola cookies langsung di browser Chromium Anda.</p>
-
 Megamendung Cookies adalah extension Manifest V3 untuk melihat, mengedit, mengimpor, dan mengekspor cookies secara lokal. Extension dibuat dengan HTML, CSS, dan JavaScript vanilla, tanpa framework atau proses build.
 
 ## Mulai menggunakan
