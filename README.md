@@ -1,64 +1,97 @@
-# Megamendung Cookies
+<p align="center">
+  <img src="assets/icons/512.png" alt="Logo Megamendung Cookies" width="160">
+</p>
 
-Ekstensi Chromium Manifest V3 untuk melihat, mengedit, mengimpor, dan mengekspor cookies secara lokal. Dibuat dengan HTML, CSS, dan JavaScript vanilla tanpa framework atau proses build.
+<h1 align="center">Megamendung Cookies</h1>
 
-## Instalasi development
+<p align="center">Kelola cookies langsung di browser Chromium Anda.</p>
+
+Megamendung Cookies adalah extension Manifest V3 untuk melihat, mengedit, mengimpor, dan mengekspor cookies secara lokal. Extension dibuat dengan HTML, CSS, dan JavaScript vanilla, tanpa framework atau proses build.
+
+## Mulai menggunakan
+
+### Instalasi dari source
 
 1. Buka `brave://extensions` atau `chrome://extensions`.
 2. Aktifkan **Developer mode**.
-3. Pilih **Load unpacked** dan arahkan ke folder proyek ini.
-4. Buka situs web yang cookies-nya ingin dikelola, lalu klik ikon Megamendung Cookies.
+3. Klik **Load unpacked**, lalu pilih folder proyek ini.
+4. Buka situs yang cookies-nya ingin dikelola dan klik ikon **Megamendung Cookies**.
 
-Editor penuh dapat dibuka dari tombol **Editor** di popup. Klik kanan ikon extension untuk membuka editor dengan domain tab aktif terisi.
+Popup menampilkan cookies tab aktif. Klik **Editor** untuk membuka tampilan lengkap. Setelah mengubah source code, tekan tombol reload pada halaman pengelolaan extension.
+
+## Mengimpor cookies
+
+1. Klik **Import** di popup, atau **Import cookies** di editor.
+2. Tempel data cookie atau pilih file hingga 10 MB.
+3. Pilih strategi konflik dan cakupan domain bila diperlukan.
+4. Klik **Import cookies**. Extension langsung memproses data dan melaporkan jumlah yang berhasil atau gagal.
+
+Popup mendeteksi format secara otomatis. Di editor, format juga dapat dipilih secara manual. Cookie yang sudah ada dapat ditimpa atau dilewati. Extension meminta konfirmasi sebelum menimpa cookie yang cocok.
+
+Format yang didukung:
+
+- JSON Megamendung dan array JSON umum.
+- Playwright/Puppeteer `storageState`.
+- Netscape `cookies.txt`.
+- Cookie header dan `Set-Cookie`.
+- HAR.
+- JSON dengan field bergaya database cookies Chrome. Nilai `encrypted_value` tidak didekripsi dan cookie tersebut dilewati.
+
+## Mengekspor cookies
+
+Klik **Export**, pilih format, lalu salin hasil ke clipboard atau unduh sebagai file. Popup mengekspor cookies tab aktif; editor dapat mengekspor cookies terpilih atau hasil filter. Format yang tersedia:
+
+- JSON cookies (array), kompatibel dengan format cookie umum.
+- JSON Megamendung dengan metadata ekspor.
+- Netscape `cookies.txt`.
+- Cookie header.
+
+Sebelum ekspor, extension meminta konfirmasi karena file dapat berisi kredensial sesi.
 
 ## Fitur
 
-- Melihat cookies dari tab aktif dan frame yang dapat diakses, termasuk flag HttpOnly, Secure, SameSite, cookie store, dan partition key.
-- Melihat cookies satu domain atau seluruh domain, pencarian, filter, pengurutan, pemilihan banyak, tambah/edit/hapus, dan ekspor.
-- Import dengan deteksi otomatis dan pratinjau: format JSON Megamendung, JSON array, Playwright/Puppeteer storageState, Netscape cookies.txt, Cookie header, Set-Cookie, HAR, dan objek JSON bergaya Chrome SQLite.
-- Ekspor JSON Megamendung, Netscape cookies.txt, Cookie header, atau JSON polos.
-- Salin hasil ekspor ke clipboard atau unduh sebagai file. Impor dapat dilakukan dengan menempel teks atau memilih file langsung dari popup/editor tanpa membuka tab baru.
-- Tema Light, Dark, dan System; pengaturan disimpan di `chrome.storage.local`.
-- Auto-refresh tab setelah setidaknya satu cookie berhasil diimpor.
+- Membaca cookies tab aktif, termasuk frame yang dapat diakses, dan menampilkan flag Secure, HttpOnly, SameSite, serta sumber frame.
+- Melihat cookies berdasarkan tab aktif, domain, atau seluruh domain; mencari, mengurutkan, dan menyaring daftar.
+- Menambah, mengedit, dan menghapus cookies satu per satu, terpilih, atau per domain.
+- Mendukung pemilihan cookie store, termasuk store incognito bila extension diizinkan berjalan dalam mode incognito.
+- Mengatur tema Light, Dark, atau System dan preferensi auto-refresh setelah import.
+- Menyediakan menu konteks pada ikon extension untuk membuka editor dengan domain tab aktif.
 
-Seluruh pemrosesan dilakukan di extension lokal. Tidak ada server, telemetri, analytics, atau permintaan jaringan yang dibuat oleh kode extension.
+## Privasi dan keamanan
 
-## Permission
+Semua pemrosesan berjalan di browser. Extension tidak mengirim cookies ke server dan tidak membuat permintaan jaringan atau telemetri.
 
-| Permission | Alasan |
+Cookies sesi berfungsi seperti kredensial akun. Gunakan extension hanya untuk akun milik Anda atau akun yang penggunaannya telah diizinkan. Simpan file ekspor dengan aman dan jangan membagikannya. Hapus file setelah selesai digunakan.
+
+Nilai cookies tersamarkan secara default di editor. Data impor dirender sebagai teks, dibatasi hingga 10 MB, dan divalidasi sebelum diterapkan. Browser atau situs tetap dapat menolak cookie karena aturan keamanan, domain, masa berlaku, atau pengikatan sesi ke perangkat, IP, maupun user agent.
+
+## Izin yang diminta
+
+| Izin | Kegunaan |
 |---|---|
 | `cookies` | Membaca, membuat, dan menghapus cookies. |
-| Host permission `<all_urls>` | `chrome.cookies` memerlukan izin host untuk mengelola cookies lintas situs yang dipilih pengguna. Akses dilakukan saat pengguna membuka popup/editor atau menerapkan aksi. |
-| `tabs` | Mengetahui tab asal, membuka editor, dan memuat ulang tab setelah import. |
-| `activeTab` | Akses tab saat pengguna berinteraksi dengan action extension. |
-| `webNavigation` | Mengidentifikasi URL frame pada tab aktif untuk pencarian cookies sub-frame. |
+| Host permission `<all_urls>` | Mengelola cookies pada situs yang dipilih pengguna; diperlukan oleh `chrome.cookies`. |
+| `tabs` | Mengidentifikasi tab asal, membuka editor, dan memuat ulang tab setelah import. |
+| `activeTab` | Memberi akses ke tab saat pengguna berinteraksi dengan extension. |
+| `webNavigation` | Menemukan URL frame pada tab aktif. |
 | `contextMenus` | Menambahkan menu pada ikon extension. |
-| `storage` | Menyimpan preferensi lokal (tema, auto-refresh, konflik, dan tampilan value). |
-| `clipboardWrite` | Menyalin ekspor cookie ke clipboard setelah pengguna memilih aksi tersebut. |
+| `storage` | Menyimpan tema dan preferensi lokal. |
+| `clipboardWrite` | Menyalin hasil ekspor setelah pengguna memilih aksi salin. |
 
-Mode incognito menggunakan `spanning`; aktifkan **Allow in incognito** pada halaman pengelolaan extension bila memang diperlukan. Cookie store incognito terpisah dari store normal.
+Extension menggunakan mode incognito `spanning`. Untuk mengelola cookies incognito, aktifkan **Allow in incognito** pada halaman pengelolaan extension. Cookie store incognito terpisah dari store normal.
 
-## Penggunaan cookie dan keamanan
+## Kompatibilitas dan batasan
 
-Cookie sesi dapat berfungsi sebagai kredensial. Ekspor hanya cookies akun milik Anda atau yang penggunaannya telah diizinkan. Simpan file ekspor secara aman dan hapus setelah digunakan. Import menampilkan pratinjau serta peringatan, dan browser tetap dapat menolak cookie berdasarkan aturan domain atau atribut keamanan. Jangan membagikan file cookie.
+Target extension adalah Chrome 120+ dan Brave berbasis Chromium. Cookies di halaman internal browser atau halaman khusus tertentu tidak dapat diakses. Partitioned cookies ditangani sebaik mungkin sesuai dukungan browser. Firefox, Safari, localStorage, sessionStorage, dan IndexedDB tidak didukung.
 
-Nilai cookie ditampilkan tersamarkan secara default di editor dan UI merender input sebagai teks. File input dibatasi 10 MB. Extension tidak mendekripsi nilai `encrypted_value` dari database Chrome. Cookie sesi mungkin tidak dapat dipindahkan jika situs mengikat sesi ke perangkat, IP, atau user agent, atau telah mencabut token.
+## Teknologi
 
-Brave Shields atau kebijakan browser dapat memblokir cookie pihak ketiga. Extension hanya menampilkan cookies yang benar-benar tersedia pada cookie store. Cookies di halaman internal browser atau halaman khusus tertentu tidak dapat diakses.
+- JavaScript vanilla
+- HTML5 dan CSS3
+- Chrome Extension Manifest V3
+- Browser berbasis Chromium
 
-## Catatan kompatibilitas
-
-Target adalah Chrome 120+ dan Brave berbasis Chromium yang setara. Partitioned cookies ditangani best-effort bergantung API dan izin browser. Tidak ada dukungan Firefox/Safari maupun localStorage, sessionStorage, atau IndexedDB.
-
-## Technologies
-
-JavaScript (Vanilla)
-TML5
-CSS3
-Chrome Extension Manifest V3
-Chromium-based browsers
-
-## License
+## Lisensi
 
 All rights reserved unless otherwise specified.
 
