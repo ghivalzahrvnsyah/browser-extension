@@ -1,2 +1,65 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../styles/shared.css"><link rel="stylesheet" href="popup.css"><title>Cookie Brother</title></head><body><header><strong>🍪 Cookie Brother</strong><div class="toolbar"><select id="theme" aria-label="Tema"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="openEditor">↗ Editor</button></div></header><section class="summary"><strong id="domain">Membaca tab…</strong><span id="count" class="muted"></span></section><input id="search" type="search" placeholder="Cari nama, value, domain…" aria-label="Cari cookies"><div class="table-wrap"><table><thead><tr><th>Nama</th><th>Domain · Frame</th><th>Flags</th><th>Aksi</th></tr></thead><tbody id="rows"></tbody></table><p id="empty" class="muted" hidden>Tidak ada cookie yang cocok.</p></div><footer><div class="toolbar"><button id="import">Import…</button><select id="exportFormat" aria-label="Format ekspor"><option value="json">JSON cookies (array)</option><option value="cookie-brother">Cookie Brother JSON</option><option value="netscape">Netscape TXT</option><option value="cookie-header">Cookie header</option></select><details class="export-menu"><summary>Export ▾</summary><button id="copyExport">Salin ke clipboard</button><button id="downloadExport">Unduh file</button></details><button id="deleteAll" class="danger">Hapus semua</button></div><label><input type="checkbox" id="autoRefresh"> Auto-refresh setelah import</label></footer>
-<details id="importPanel"><summary>Import cookie</summary><div class="import-content"><div class="toolbar"><input type="file" id="file" accept=".json,.txt,.har,.cookies,text/plain,application/json"><select id="importFormat" aria-label="Format impor"><option value="auto">Deteksi otomatis</option><option value="cookie-brother">Cookie Brother JSON</option><option value="json">JSON array / storageState</option><option value="netscape">Netscape cookies.txt</option><option value="cookie-header">Cookie header</option><option value="set-cookie">Set-Cookie</option><option value="har">HAR</option><option value="chrome-sqlite">Chrome SQLite JSON</option></select></div><textarea id="importText" placeholder="Tempel teks cookie atau letakkan file di sini…" aria-label="Teks cookie untuk impor"></textarea><div class="toolbar"><select id="conflict" aria-label="Strategi konflik"><option value="overwrite">Timpa cookie duplikat</option><option value="skip">Lewati cookie duplikat</option></select><label><input type="checkbox" id="activeDomainOnly"> Hanya domain tab ini</label><button id="preview" class="primary">Pratinjau</button></div><div id="previewArea" hidden><p id="previewSummary"></p><div class="preview-table"><table><thead><tr><th>Nama</th><th>Domain</th><th>Catatan</th></tr></thead><tbody id="previewRows"></tbody></table></div><button id="applyImport" class="primary">Terapkan import</button></div></div></details><div id="toast" class="toast" hidden></div><script type="module" src="popup.js"></script></body></html>
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="../styles/shared.css">
+  <link rel="stylesheet" href="popup.css">
+  <title>Megamendung Cookies</title>
+</head>
+<body>
+  <header>
+    <div class="brand"><img src="../assets/icons/32.png" alt=""><strong>Megamendung Cookies</strong></div>
+    <div class="toolbar header-tools">
+      <label class="sr-only" for="theme">Tema</label>
+      <select id="theme" aria-label="Pilih tema"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+      <button id="openEditor" type="button">Editor</button>
+    </div>
+  </header>
+  <section class="summary"><strong id="domain">Membaca tab…</strong><span id="count" class="muted"></span></section>
+  <label class="sr-only" for="search">Cari cookies berdasarkan nama, nilai, atau domain</label>
+  <input id="search" type="search" placeholder="Cari nama, value, domain…">
+  <div class="table-wrap">
+    <table><thead><tr><th scope="col">Nama</th><th scope="col">Domain · Frame</th><th scope="col">Flags</th><th scope="col">Aksi</th></tr></thead><tbody id="rows"></tbody></table>
+    <p id="empty" class="muted" hidden>Tidak ada cookie yang cocok.</p>
+  </div>
+  <footer>
+    <div class="actions" role="group" aria-label="Aksi cookies">
+      <button id="import" class="action-import" type="button">Import</button>
+      <button id="export" class="action-export" type="button">Export</button>
+      <button id="deleteAll" class="action-delete" type="button">Clear cookies</button>
+    </div>
+    <label class="refresh-setting"><input type="checkbox" id="autoRefresh"> Auto-refresh setelah import</label>
+  </footer>
+
+  <dialog id="importDialog" aria-labelledby="importTitle">
+    <div class="dialog-head"><h2 id="importTitle">Import cookies</h2><button type="button" class="dialog-close" data-close="importDialog" aria-label="Tutup dialog impor">×</button></div>
+    <div class="dialog-body">
+      <label class="field">Pilih file<input type="file" id="file" accept=".json,.txt,.har,.cookies,text/plain,application/json"></label>
+      <label class="field">Format<input type="hidden" id="importFormat" value="auto"><span class="helper">Format akan dideteksi otomatis dari isi file atau teks.</span></label>
+      <label class="field" for="importText">Tempel cookies<textarea id="importText" placeholder="Tempel JSON, Netscape, Cookie header, Set-Cookie, atau format lain…"></textarea></label>
+      <div class="toolbar import-options">
+        <label class="field">Jika cookie sudah ada<select id="conflict"><option value="overwrite">Timpa</option><option value="skip">Lewati</option></select></label>
+        <label class="check-label"><input type="checkbox" id="activeDomainOnly"> Hanya domain tab ini</label>
+      </div>
+      <button id="preview" class="action-import" type="button">Tinjau import</button>
+      <div id="previewArea" hidden>
+        <p id="previewSummary" class="helper"></p>
+        <div class="preview-table"><table><thead><tr><th scope="col">Nama</th><th scope="col">Domain</th><th scope="col">Catatan</th></tr></thead><tbody id="previewRows"></tbody></table></div>
+        <button id="applyImport" class="action-import" type="button">Terapkan cookies</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="exportDialog" aria-labelledby="exportTitle">
+    <div class="dialog-head"><h2 id="exportTitle">Export cookies</h2><button type="button" class="dialog-close" data-close="exportDialog" aria-label="Tutup dialog ekspor">×</button></div>
+    <div class="dialog-body">
+      <label class="field">Format file<select id="exportFormat"><option value="json">JSON cookies (array)</option><option value="cookie-brother">Megamendung JSON</option><option value="netscape">Netscape TXT</option><option value="cookie-header">Cookie header</option></select></label>
+      <p class="helper">File ekspor berisi data sesi. Simpan dengan aman.</p>
+      <div class="toolbar export-actions"><button id="copyExport" class="action-export" type="button">Salin ke clipboard</button><button id="downloadExport" class="action-export" type="button">Unduh file</button></div>
+    </div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

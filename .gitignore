@@ -1,2 +1,19 @@
-/manifest.json
-/PRD.md
+# Private source files
+manifest.json
+*.js
+*.html
+*.css
+
+# Private configuration
+.env
+.env.*
+*.pem
+*.key
+
+# Backup and packages
+*.zip
+*.crx
+
+# System files
+.DS_Store
+Thumbs.db
