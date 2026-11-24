@@ -11,6 +11,7 @@ let tab, cookies = [], settings, activeStoreId = "0";
 await bindTheme($("#theme"));
 settings = await getSettings();
 $("#autoRefresh").checked = settings.autoRefresh;
+$("#autoRefreshClear").checked = settings.autoRefreshAfterClear;
 $("#exportFormat").value = ["json", "cookie-brother", "netscape", "cookie-header"].includes(settings.exportFormat) ? settings.exportFormat : "json";
 $("#conflict").value = settings.conflict;
 await loadCookies();
@@ -47,9 +48,10 @@ function render() {
     const remove = document.createElement("button"); remove.textContent = "Hapus"; remove.className = "danger"; remove.setAttribute("aria-label", `Hapus ${cookie.name}`);
     remove.onclick = async () => {
       if (!confirm(`Hapus cookie ${cookie.name}?`)) return;
-      await removeCookie(cookie);
+      const removed = await removeCookie(cookie);
       cookies = cookies.filter(item => item !== cookie);
       render(); toast("Cookie dihapus.");
+      if (removed && $("#autoRefreshClear").checked && tab?.id != null) await chrome.tabs.reload(tab.id, { bypassCache: true });
     };
     actions.append(remove); row.append(name, domain, flags, actions); body.append(row);
   }
@@ -68,6 +70,7 @@ $("#import").onclick = () => { $("#importDialog").showModal(); $("#importText").
 $("#export").onclick = () => $("#exportDialog").showModal();
 document.querySelectorAll("[data-close]").forEach(button => button.onclick = () => $("#" + button.dataset.close).close());
 $("#autoRefresh").onchange = async event => { settings.autoRefresh = event.target.checked; await saveSettings({ autoRefresh: event.target.checked }); };
+$("#autoRefreshClear").onchange = async event => { settings.autoRefreshAfterClear = event.target.checked; await saveSettings({ autoRefreshAfterClear: event.target.checked }); };
 $("#exportFormat").onchange = event => saveSettings({ exportFormat: event.target.value });
 
 async function exportCookies(action) {
@@ -91,8 +94,10 @@ $("#downloadExport").onclick = () => exportCookies("file");
 
 $("#deleteAll").onclick = async () => {
   if (!cookies.length || !confirm(`Hapus semua ${cookies.length} cookies yang terlihat di tab ini?`)) return;
-  for (const cookie of cookies) try { await removeCookie(cookie); } catch {}
+  let removed = 0;
+  for (const cookie of cookies) try { if (await removeCookie(cookie)) removed++; } catch {}
   cookies = []; render(); toast("Cookies dihapus.");
+  if (removed && $("#autoRefreshClear").checked && tab?.id != null) await chrome.tabs.reload(tab.id, { bypassCache: true });
 };
 
 $("#file").onchange = async event => {

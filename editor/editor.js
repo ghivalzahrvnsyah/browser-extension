@@ -8,7 +8,7 @@ import { downloadText, copyText, hostname, toast } from "../lib/utils.js";
 const $ = s => document.querySelector(s); let tab, cookies = [], stores = [], mode = "tab", sort = "domain", ascending = true;
 const matchesDomain = (host, domain) => { const h = String(host || "").toLowerCase().replace(/^\.+/, ""); const d = String(domain || "").toLowerCase().replace(/^\.+/, ""); return Boolean(h && d && (h === d || h.endsWith(`.${d}`))); };
 const params = new URLSearchParams(location.search); const requestedTabId = Number(params.get("tabId"));
-	await bindTheme($("#theme")); const settings = await getSettings(); $("#mask").checked = settings.maskValues; $("#conflict").value = settings.conflict; $("#exportFormat").value = settings.exportFormat; $("#refreshScope").value = settings.refreshScope; $("#domainInput").value = params.get("domain") || "";
+	await bindTheme($("#theme")); const settings = await getSettings(); $("#mask").checked = settings.maskValues; $("#conflict").value = settings.conflict; $("#exportFormat").value = settings.exportFormat; $("#refreshScope").value = settings.refreshScope; $("#autoRefreshClear").checked = settings.autoRefreshAfterClear; $("#domainInput").value = params.get("domain") || "";
 tab = Number.isInteger(requestedTabId) && requestedTabId > 0 ? await chrome.tabs.get(requestedTabId).catch(() => null) : await getActiveTab();
 stores = await chrome.cookies.getAllCookieStores(); for (const s of stores) { const o = document.createElement("option"); o.value = s.id; o.textContent = `${s.id}${s.tabIds?.includes(tab?.id) ? " (tab aktif)" : ""}`; $("#store").append(o); }
 if (tab?.id != null) $("#store").value = stores.find(s => s.tabIds?.includes(tab.id))?.id || stores[0]?.id || "";
@@ -25,6 +25,12 @@ async function loadCookies() {
     render();
   } catch (e) { toast(`Gagal membaca cookies: ${e.message}`); }
 }
+async function refreshAfterClear() {
+  const currentSettings = await getSettings();
+  if (currentSettings.autoRefreshAfterClear && tab?.id != null) {
+    try { await chrome.tabs.reload(tab.id, { bypassCache: true }); } catch {}
+  }
+}
 function filtered() {
   const q = $("#search").value.toLowerCase();
   return cookies.filter(c => (!q || `${c.name} ${c.value} ${c.domain}`.toLowerCase().includes(q)) && (!$("#secureFilter").checked || c.secure) && (!$("#httpOnlyFilter").checked || c.httpOnly) && (!$("#sessionFilter").checked || c.session));
@@ -40,7 +46,7 @@ function render() {
     const tr = document.createElement("tr"); const check = document.createElement("input"); check.type = "checkbox"; check.className = "row-check"; check.setAttribute("aria-label", `Pilih ${c.name}`); const tdCheck = document.createElement("td"); tdCheck.append(check); tr.append(tdCheck);
     const vals = [c.name, $("#mask").checked ? "••••••••" : c.value, c.domain, c.path, c.session ? "Session" : c.expirationDate ? new Date(c.expirationDate * 1000).toLocaleString() : "—", c.secure ? "✓" : "", c.httpOnly ? "✓" : "", c.sameSite || "unspecified", c.frame || "—"];
     for (const val of vals) { const td = document.createElement("td"); td.textContent = val; tr.append(td); }
-    const actions = document.createElement("td"); const edit = document.createElement("button"); edit.textContent = "Edit"; edit.onclick = () => fillForm(c); actions.append(edit); const del = document.createElement("button"); del.textContent = "×"; del.className = "danger"; del.setAttribute("aria-label", `Hapus ${c.name}`); del.onclick = async () => { if (confirm(`Hapus cookie ${c.name} dari ${c.domain}?`)) { await removeCookie(c); cookies = cookies.filter(x => cookieKey(x) !== cookieKey(c)); render(); toast("Cookie dihapus."); } }; actions.append(del); tr.append(actions); body.append(tr);
+    const actions = document.createElement("td"); const edit = document.createElement("button"); edit.textContent = "Edit"; edit.onclick = () => fillForm(c); actions.append(edit); const del = document.createElement("button"); del.textContent = "×"; del.className = "danger"; del.setAttribute("aria-label", `Hapus ${c.name}`); del.onclick = async () => { if (confirm(`Hapus cookie ${c.name} dari ${c.domain}?`)) { const removed = await removeCookie(c); if (removed) { cookies = cookies.filter(x => cookieKey(x) !== cookieKey(c)); render(); toast("Cookie dihapus."); await refreshAfterClear(); } } }; actions.append(del); tr.append(actions); body.append(tr);
   }
   $("#selectAll").checked = false;
 }
@@ -52,14 +58,15 @@ $("#cookieForm").onsubmit = async e => { e.preventDefault(); const c = { name: $
 };
 $("#clearForm").onclick = () => fillForm(); $("#add").onclick = () => fillForm();
 $("#selectAll").onchange = e => document.querySelectorAll(".row-check").forEach(x => x.checked = e.target.checked);
-$("#deleteSelected").onclick = async () => { const picked = selectedCookies(); if (!picked.length) return toast("Pilih cookie terlebih dahulu."); if (!confirm(`Hapus ${picked.length} cookies terpilih?`)) return; for (const c of picked) try { await removeCookie(c); } catch {} const keys = new Set(picked.map(cookieKey)); cookies = cookies.filter(c => !keys.has(cookieKey(c))); render(); toast(`${picked.length} cookies dihapus.`); };
-$("#deleteDomain").onclick = async () => { const domain = $("#domainInput").value.trim() || hostname(tab?.url || ""); if (!domain || !confirm(`Hapus semua cookies untuk ${domain} dan subdomainnya pada store ini?`)) return; const all = await getDomainCookies(domain, $("#store").value); for (const c of all) try { await removeCookie(c); } catch {} cookies = cookies.filter(c => !all.some(x => cookieKey(x) === cookieKey(c))); render(); toast(`${all.length} cookies dihapus.`); };
+$("#deleteSelected").onclick = async () => { const picked = selectedCookies(); if (!picked.length) return toast("Pilih cookie terlebih dahulu."); if (!confirm(`Hapus ${picked.length} cookies terpilih?`)) return; const removedKeys = new Set(); for (const c of picked) try { if (await removeCookie(c)) removedKeys.add(cookieKey(c)); } catch {} cookies = cookies.filter(c => !removedKeys.has(cookieKey(c))); render(); toast(`${removedKeys.size} cookies dihapus.`); if (removedKeys.size) await refreshAfterClear(); };
+$("#deleteDomain").onclick = async () => { const domain = $("#domainInput").value.trim() || hostname(tab?.url || ""); if (!domain || !confirm(`Hapus semua cookies untuk ${domain} dan subdomainnya pada store ini?`)) return; const all = await getDomainCookies(domain, $("#store").value); let removed = 0; for (const c of all) try { if (await removeCookie(c)) removed++; } catch {} const removedKeys = new Set(all.map(cookieKey)); cookies = cookies.filter(c => !removedKeys.has(cookieKey(c))); render(); toast(`${removed} cookies dihapus.`); if (removed) await refreshAfterClear(); };
 $("#refresh").onclick = loadCookies; $("#loadDomain").onclick = () => { mode = "domain"; document.querySelector('input[name="mode"][value="domain"]').checked = true; loadCookies(); };
 document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = e => { mode = e.target.value; loadCookies(); }); $("#store").onchange = loadCookies;
 for (const id of ["search","secureFilter","httpOnlyFilter","sessionFilter","mask"]) $("#"+id).addEventListener("input", render); $("#mask").onchange = async e => { await saveSettings({ maskValues: e.target.checked }); render(); };
 document.querySelectorAll("th[data-sort]").forEach(th => th.onclick = () => { if (sort === th.dataset.sort) ascending = !ascending; else { sort = th.dataset.sort; ascending = true; } render(); });
 $("#exportFormat").onchange = e => saveSettings({ exportFormat: e.target.value });
 $("#refreshScope").onchange = e => saveSettings({ refreshScope: e.target.value });
+$("#autoRefreshClear").onchange = e => saveSettings({ autoRefreshAfterClear: e.target.checked });
 async function exportCookies(action) { const chosen = selectedCookies(); const list = chosen.length ? chosen : filtered(); if (!list.length) return toast("Tidak ada cookie untuk diekspor."); if (!confirm(`Ekspor ${list.length} cookies? Data berisi kredensial sesi. Simpan file dengan aman dan hapus setelah digunakan.`)) return; const fmt = $("#exportFormat").value; const data = serializeCookies(list, fmt, tab?.url || ""); try { if (action === "copy") { await copyText(data); toast("Cookie disalin ke clipboard."); } else { const text = fmt === "netscape" || fmt === "cookie-header"; downloadText(data, text ? "cookies.txt" : "cookies.json", text ? "text/plain" : "application/json"); } } catch (e) { toast(`Aksi gagal: ${e.message}`); } $(".export-menu").open = false; }
 $("#copyExport").onclick = () => exportCookies("copy"); $("#downloadExport").onclick = () => exportCookies("file");
 
