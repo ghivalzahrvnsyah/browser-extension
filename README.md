@@ -55,6 +55,7 @@ Sebelum ekspor, extension meminta konfirmasi karena file dapat berisi kredensial
 - Menambah, mengedit, dan menghapus cookies satu per satu, terpilih, atau per domain.
 - Mendukung pemilihan cookie store, termasuk store incognito bila extension diizinkan berjalan dalam mode incognito.
 - Mengatur tema Light, Dark, atau System dan preferensi auto-refresh setelah import.
+- Auto-refresh setelah menghapus cookie dapat diaktifkan lewat checkbox di popup atau editor.
 - Menyediakan menu konteks pada ikon extension untuk membuka editor dengan domain tab aktif.
 
 ## Privasi dan keamanan
