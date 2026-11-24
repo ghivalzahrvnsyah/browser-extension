@@ -26,8 +26,7 @@ async function loadCookies() {
   } catch (e) { toast(`Gagal membaca cookies: ${e.message}`); }
 }
 async function refreshAfterClear() {
-  const currentSettings = await getSettings();
-  if (currentSettings.autoRefreshAfterClear && tab?.id != null) {
+  if ($("#autoRefreshClear").checked && tab?.id != null) {
     try { await chrome.tabs.reload(tab.id, { bypassCache: true }); } catch {}
   }
 }
